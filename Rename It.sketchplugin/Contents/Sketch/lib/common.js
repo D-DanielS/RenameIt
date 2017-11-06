@@ -4,9 +4,57 @@
 // http://github.com/rodi01/RenameIt
 //
 
+// Settings
+RI.extend({
+  maxHistory: 5,
+  isPresent: function (data) {
+    return data != null
+  },
+  getUserPreferences: function (defaultPrefs) {
+    var prefs = {}
+    var store = NSUserDefaults.alloc().initWithSuiteName(this.context.plugin.identifier())
+    Object.keys(defaultPrefs).forEach(function (k) {
+      if (typeof defaultPrefs[k] === 'boolean') {
+        prefs[k] = RI.isPresent(store.boolForKey(k)) ? Boolean(store.boolForKey(k)) : defaultPrefs[k]
+      } else if (typeof defaultPrefs[k] === 'number') {
+        prefs[k] = RI.isPresent(store.doubleForKey(k)) ? store.doubleForKey(k) : defaultPrefs[k]
+      } else if (typeof defaultPrefs[k] === 'string') {
+        prefs[k] = RI.isPresent(store.stringForKey(k)) ? '' + store.stringForKey(k) : defaultPrefs[k]
+      } else if (Array.isArray(defaultPrefs[k])) {
+        prefs[k] = store.arrayForKey(k) || defaultPrefs[k]
+      } else {
+        prefs[k] = store.dictionaryForKey(k) || defaultPrefs[k]
+      }
+    })
+    return prefs
+  },
+  setUserPreferences: function(prefs) {
+    var store = NSUserDefaults.alloc().initWithSuiteName(RI.context.plugin.identifier())
+    Object.keys(prefs).forEach(function (k) {
+      if (typeof prefs[k] === 'boolean') {
+        store.setBool_forKey(prefs[k], k)
+      } else if (typeof prefs[k] === 'number') {
+        store.setDouble_forKey(prefs[k], k)
+      } else {
+        store.setObject_forKey(prefs[k], k)
+      }
+    })
+    store.synchronize()
+  },
+  removeUserPreferences: function(keys) {
+    var store = NSUserDefaults.alloc().initWithSuiteName(RI.context.plugin.identifier())
+    keys.forEach(function (k) {
+      store.removeObjectForKey(k);
+    })
+    store.synchronize();
+  }
+});
+
+// Init
 RI.extend({
   init: function(context, command) {
     this.doc = context.document;
+    this.context = context;
     this.data = {};
     this.hashData(context.selection);
     this.extend(context);
@@ -25,6 +73,8 @@ RI.extend({
     // Page Name
     this.data.pageName = "" + this.doc.currentPage().name();
 
+    // Settings
+    // this.setUserPreferences({"renameHistory":["test 1", "test2"]});
 
     if (this.data.selectionCount > 0)
     {
@@ -80,6 +130,20 @@ RI.extend({
       this.data.selection[i].width = width
       this.data.selection[i].height = height
     }
+  }
+});
+
+// History
+RI.extend({
+  setHistory: function(entry, value) {
+    var currentHistory = this.getUserPreferences(entry)
+    log(currentHistory)
+    // if (currentHistory.length >= RI.maxHistory) {
+    //   currentHistory.pop();
+    // }
+    // currentHistory.unshift(""+value);
+    // log(currentHistory);
+    // RI.setPreferences(entry, currentHistory);
   }
 });
 
@@ -231,6 +295,8 @@ RI.extend({
           var currentData = self.data.selection[i];
           currentData.layer.name = RI.rename(currentData.name, i, currentData.width, currentData.height, self.data.selectionCount, data.name, parseInt(data.sequence), self.data.pageName);
         }
+        log("Callback");
+        RI.setHistory({"renameHistory": Array()}, "boo");
         var totalSelectedStr = (self.data.selectionCount>1) ? (self.data.selectionCount + " Layers") : (self.data.selectionCount + " Layer");
         var doc = self.doc
         [doc showMessage: "Rename it: Updated " + totalSelectedStr ];
